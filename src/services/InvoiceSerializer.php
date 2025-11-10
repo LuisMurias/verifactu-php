@@ -448,9 +448,30 @@ class InvoiceSerializer
         $root = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:ConsultaFactuSistemaFacturacion');
         $doc->appendChild($root);
 
+
+
         // Cabecera (Consulta namespace) with required IDVersion (child in SF namespace)
-        $cabecera = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:Cabecera');
+        $cabecera = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:Cabecera'); 
         $cabecera->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:IDVersion', '1.0'));
+        
+        // ObligadoEmision is required in Cabecera (choice with Destinatario, but ObligadoEmision is most common)
+        // According to ObligadoEmisionConsultaType: both NombreRazon and NIF are REQUIRED
+        $issuerparty = $query->getIssuerparty();
+        if (!empty($issuerparty) && is_array($issuerparty)) {
+            $obligadoEmision = $doc->createElementNS(self::SF_NAMESPACE, 'sf:ObligadoEmision');
+            // Order according to ObligadoEmisionConsultaType schema: NombreRazon, NIF (both required)
+            $nombreRazon = isset($issuerparty['name']) ? (string) $issuerparty['name'] : '';
+            $nif = isset($issuerparty['nif']) ? (string) $issuerparty['nif'] : '';
+            
+            if (empty($nombreRazon) || empty($nif)) {
+                throw new \InvalidArgumentException('ObligadoEmision requires both NombreRazon and NIF. Cannot be empty.');
+            }
+            
+            $obligadoEmision->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', $nombreRazon));
+            $obligadoEmision->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NIF', $nif));
+            $cabecera->appendChild($obligadoEmision);
+        }
+        
         $root->appendChild($cabecera);
 
         // FiltroConsulta (Consulta namespace)
@@ -473,9 +494,12 @@ class InvoiceSerializer
         if (!empty($counterparty) && is_array($counterparty)) {
             $contraparte = $doc->createElementNS(self::QUERY_NAMESPACE, 'sf:Contraparte');
             // Order matters: NombreRazon first, then identification (NIF/IDOtro)
-            if (!empty($counterparty['name'])) {
-                $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', (string) $counterparty['name']));
+            // NombreRazon is REQUIRED per ContraparteConsultaType schema
+            $nombreRazon = isset($counterparty['name']) ? (string) $counterparty['name'] : '';
+            if (empty($nombreRazon)) {
+                throw new \InvalidArgumentException('NombreRazon is REQUIRED when Contraparte is specified. Cannot be empty.');
             }
+            $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NombreRazon', $nombreRazon));
             if (!empty($counterparty['nif'])) {
                 $contraparte->appendChild($doc->createElementNS(self::SF_NAMESPACE, 'sf:NIF', (string) $counterparty['nif']));
             }
