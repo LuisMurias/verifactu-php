@@ -34,6 +34,13 @@ class InvoiceQuery extends Model
      */
     private $counterparty;
 
+
+    /**
+     * Issuer party information (ObligadoEmision, required in Cabecera).
+     * @var array
+     */
+    private $issuerparty; 
+
     /**
      * Issue date filter (FechaExpedicionFactura, optional).
      * @var string
@@ -55,6 +62,34 @@ class InvoiceQuery extends Model
      * Pagination key (ClavePaginacion, optional).
      */
     private ?array $paginationKey = null;
+
+    /**
+     * Get the issuer party information.
+     * @return array
+     */
+    public function getIssuerparty()
+    {
+        return $this->issuerparty;
+    }
+
+    /**
+     * Set the issuer party information (ObligadoEmision).
+     * @param string $nif Issuer party NIF
+     * @param string|null $name Issuer party name (optional)
+     * @return $this
+     */
+    public function setIssuerparty($nif, $name = null): static
+    {
+        // Both nif and name are required per ObligadoEmisionConsultaType schema
+        $this->issuerparty = [
+            'nif' => $nif,
+        ];
+
+        // Always set name, even if null (will be validated later)
+        $this->issuerparty['name'] = $name !== null ? $name : '';
+
+        return $this;
+    }
 
     /**
      * Get the counterparty information.
