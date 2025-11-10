@@ -243,7 +243,13 @@ TXT
         
         // Get the XML from the query using InvoiceSerializer
         $queryDom = InvoiceSerializer::toQueryXml($query);
-        $xml = $queryDom->saveXML();
+        
+        // Get XML without the XML declaration to avoid issues in SOAP body
+        // Same approach as in registerInvoice (line 133-136)
+        $dom_xpath = new \DOMXPath($queryDom);
+        $root = $dom_xpath->query('/')->item(0)->firstChild; 
+        $xml = $queryDom->saveXML($root);
+
         
         $client = self::getClient();
 
