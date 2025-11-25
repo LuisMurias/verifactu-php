@@ -198,28 +198,36 @@ TXT
         // Get the RegistroAnulacion XML from the cancellation using InvoiceSerializer
         $cancellationDom = InvoiceSerializer::toCancellationXml($cancellation);
         
+        // Sign the RegistroAnulacion XML first (so signature is inside RegistroAnulacion)
+        // Esto es igual que en registerInvoice para mantener consistencia
+        $signedCancellationXml = XmlSignerService::signXml(
+            $cancellationDom->saveXML(),
+            self::getConfig(self::CERT_PATH_KEY),
+            self::getConfig(self::CERT_PASSWORD_KEY)
+        );
+        
+        // Create a temporary DOM document with the signed XML
+        $signedDom = new \DOMDocument();
+        $signedDom->loadXML($signedCancellationXml);
+        
         // Get the issuer information for the Cabecera
         $invoiceId = $cancellation->getInvoiceId();
         $nif = $invoiceId->issuerNif;
         $name = "Obligado Tributario"; // Placeholder for cancellations
         
-        // Wrap the XML with the proper structure using InvoiceSerializer
-        $wrappedDom = InvoiceSerializer::wrapXmlWithRegFactuStructure($cancellationDom, $nif, $name);
+        // Wrap the signed XML with the proper structure using InvoiceSerializer
+        $wrappedDom = InvoiceSerializer::wrapXmlWithRegFactuStructure($signedDom, $nif, $name);
         
         // Get XML without the XML declaration to avoid issues in SOAP body
         $dom_xpath = new \DOMXPath($wrappedDom);
         $root = $dom_xpath->query('/')->item(0)->firstChild;
         $xml = $wrappedDom->saveXML($root);
-
-        $signedXml = XmlSignerService::signXml(
-            $xml,
-            self::getConfig(self::CERT_PATH_KEY),
-            self::getConfig(self::CERT_PASSWORD_KEY)
-        );
+        
         $client = self::getClient();
 
         // Envío como ANYXML (evita "object has no 'Cabecera' property")
-        $soapVar = new \SoapVar($signedXml, XSD_ANYXML);
+        // El SoapClient manejará automáticamente el SOAP Envelope
+        $soapVar = new \SoapVar($xml, XSD_ANYXML);
         $responseXml = $client->__soapCall('RegFactuSistemaFacturacion', [$soapVar]);
 
         // Parse using raw SOAP response string
